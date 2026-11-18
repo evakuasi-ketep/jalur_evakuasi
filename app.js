@@ -1,5 +1,8 @@
-// 1. Inisialisasi Peta Leaflet
-const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
+// 1. Inisialisasi Peta Leaflet (Gunakan preferCanvas agar garis jalur 100% stabil & tidak pernah hilang)
+const map = L.map('map', { 
+    zoomControl: false,
+    preferCanvas: true 
+}).setView([-7.4935, 110.3950], 14);
 
 // Basemap (Satelit Esri & OpenStreetMap)
 const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
@@ -40,7 +43,7 @@ const googleBlueDotIcon = L.divIcon({
     iconAnchor: [20, 20]
 });
 
-// Icon Titik Kumpul (Hijau - Besar & Jelas di atas garis)
+// Icon Titik Kumpul (Hijau - Selalu di atas garis)
 const iconTitikKumpul = L.divIcon({
     className: 'custom-pin',
     html: `<div style="width: 22px; height: 22px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.7);"></div>`,
@@ -48,7 +51,7 @@ const iconTitikKumpul = L.divIcon({
     iconAnchor: [11, 11]
 });
 
-// Icon Titik Plang (Oranye Kuning - Jelas di atas garis)
+// Icon Titik Plang (Oranye Kuning - Selalu di atas garis)
 const iconTitikPlang = L.divIcon({
     className: 'custom-pin',
     html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.7);"></div>`,
@@ -65,37 +68,6 @@ function hitungSudut(lat1, lon1, lat2, lon2) {
     const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
               Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
-// Fungsi Menggambar Garis Jalur Oranye + Tanda Panah Rapi
-function gambarJalurDanPanah(coordsArray) {
-    if (!coordsArray || coordsArray.length < 2) return;
-
-    // 1. Konversi koordinat [lng, lat, z] menjadi [lat, lng] untuk Polyline
-    const latLngs = coordsArray.map(c => [c[1], c[0]]);
-    L.polyline(latLngs, {
-        color: '#ff6b00',
-        weight: 5,
-        opacity: 0.95
-    }).addTo(map);
-
-    // 2. Gambar Panah di titik tengah ruas jalan
-    const midIdx = Math.floor(coordsArray.length / 2);
-    const p1 = coordsArray[Math.max(0, midIdx - 1)];
-    const p2 = coordsArray[Math.min(coordsArray.length - 1, midIdx)];
-    
-    const midLat = (p1[1] + p2[1]) / 2;
-    const midLng = (p1[0] + p2[0]) / 2;
-    const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
-
-    const arrowIcon = L.divIcon({
-        className: 'arrow-icon',
-        html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 12px; font-weight: bold; text-shadow: 0 0 3px #000;">▲</div>`,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7]
-    });
-
-    L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 300 }).addTo(map);
 }
 
 // 2. LOAD BATAS WILAYAH DESA KETEP
@@ -117,7 +89,7 @@ fetch('data/batas_desa.geojson?v=' + Date.now())
 fetch('data/jalur_evakuasi.geojson?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
-        L.geoJSON(data, { 
+        const jalurLayer = L.geoJSON(data, { 
             style: { 
                 color: '#ff6b00', 
                 weight: 5, 
@@ -125,8 +97,7 @@ fetch('data/jalur_evakuasi.geojson?v=' + Date.now())
             },
             onEachFeature: (feature) => {
                 if (!feature.geometry) return;
-                
-                // Gambar panah putih di tengah tiap ruas garis
+
                 const prosesPanah = (coords) => {
                     if (!coords || coords.length < 2) return;
                     const midIdx = Math.floor(coords.length / 2);
@@ -156,16 +127,12 @@ fetch('data/jalur_evakuasi.geojson?v=' + Date.now())
 
 // 4. LOAD TITIK KUMPUL & TITIK PLANG (DI ATAS GARIS JALUR)
 fetch('data/titik.geojson?v=' + Date.now())
-    .then(r => {
-        if (!r.ok) throw new Error("File data/titik.geojson belum di-upload ke GitHub!");
-        return r.json();
-    })
+    .then(r => r.json())
     .then(data => {
         if (!data.features) return;
         data.features.forEach(feature => {
             if (!feature.geometry || !feature.geometry.coordinates) return;
             
-            // Ambil koordinat murni 2D (abaikan elevasi Z jika ada)
             const coords = feature.geometry.coordinates;
             const lng = coords[0];
             const lat = coords[1];
@@ -177,7 +144,7 @@ fetch('data/titik.geojson?v=' + Date.now())
 
             const marker = L.marker([lat, lng], { 
                 icon: isPlang ? iconTitikPlang : iconTitikKumpul,
-                zIndexOffset: 700 // Paling atas di atas jalur & panah
+                zIndexOffset: 700
             }).addTo(map);
 
             if (isPlang) {
