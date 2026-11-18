@@ -42,52 +42,55 @@ const googleBlueDotIcon = L.divIcon({
 });
 
 // 2. Load Data GeoJSON Desa Ketep
-fetch('data/batas_desa.geojson')
-    .then(r => r.json())
-    .then(data => {
-        L.geoJSON(data, { 
-            style: { color: '#991b1b', weight: 3, dashArray: '6, 6', fillColor: '#ef4444', fillOpacity: 0.15 } 
-        }).addTo(map);
-    }).catch(err => console.log("Batas desa belum di-load"));
-
-fetch('data/jalur_evakuasi.geojson')
-    .then(r => r.json())
-    .then(data => {
-        L.geoJSON(data, { 
-            style: { color: '#e65100', weight: 5, opacity: 0.9 } 
-        }).addTo(map);
-    }).catch(err => console.log("Jalur evakuasi belum di-load"));
-
-fetch('data/titik_kumpul.geojson')
+fetch('data/titik.geojson')
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, {
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { 
-                radius: 9, 
-                fillColor: "#16a34a", 
-                color: "#ffffff", 
-                weight: 2, 
-                fillOpacity: 0.95 
-            }),
+            pointToLayer: (feature, latlng) => {
+                // Cek apakah titik ini plang atau titik kumpul dari atributnya
+                const props = feature.properties || {};
+                const teks = JSON.stringify(props).toLowerCase();
+                const isPlang = teks.includes('plang') || teks.includes('rambu');
+
+                return L.circleMarker(latlng, { 
+                    radius: isPlang ? 7 : 9, 
+                    fillColor: isPlang ? "#f97316" : "#16a34a", // Oranye untuk Plang, Hijau untuk Titik Kumpul
+                    color: "#ffffff", 
+                    weight: 2, 
+                    fillOpacity: 0.95 
+                });
+            },
             onEachFeature: (feature, layer) => {
-                const nama = feature.properties ? (feature.properties.nama || feature.properties.NAMOBJ || "Titik Evakuasi") : "Titik Evakuasi";
+                const props = feature.properties || {};
+                const nama = props.nama || props.NAMOBJ || props.keterangan || "Titik Evakuasi";
+                const teks = JSON.stringify(props).toLowerCase();
+                const isPlang = teks.includes('plang') || teks.includes('rambu');
                 const lat = layer.getLatLng().lat;
                 const lng = layer.getLatLng().lng;
 
-                // Simpan koordinat ke daftar untuk kalkulasi titik terdekat
-                daftarTitikKumpul.push({ nama, lat, lng });
+                if (isPlang) {
+                    layer.bindPopup(`
+                        <div style="text-align:center; padding: 4px;">
+                            <b style="color:#c2410c; font-size:12px;">📍 ${nama}</b><br>
+                            <small style="color:#64748b;">Plang Penunjuk Arah</small>
+                        </div>
+                    `);
+                } else {
+                    // Masukkan ke daftar tujuan Evakuasi Otomatis
+                    daftarTitikKumpul.push({ nama, lat, lng });
 
-                layer.bindPopup(`
-                    <div style="text-align:center; padding: 4px;">
-                        <b style="color:#15803d; font-size:13px;">${nama}</b><br><br>
-                        <button onclick="buatRute(${lat}, ${lng})" style="background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:11px;">
-                            🚗 Rute Ke Sini
-                        </button>
-                    </div>
-                `);
+                    layer.bindPopup(`
+                        <div style="text-align:center; padding: 4px;">
+                            <b style="color:#15803d; font-size:13px;">${nama}</b><br><br>
+                            <button onclick="buatRute(${lat}, ${lng})" style="background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:11px;">
+                                🚗 Rute Ke Sini
+                            </button>
+                        </div>
+                    `);
+                }
             }
         }).addTo(map);
-    }).catch(err => console.log("Titik kumpul belum di-load"));
+    }).catch(err => console.log("Gagal memuat titik.geojson:", err));
 
 // 3. Fitur GPS Live Tracking Real-time (Bisa Bergerak)
 function lacakLokasi(callback) {
