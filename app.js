@@ -1,16 +1,6 @@
 // 1. Inisialisasi Peta Leaflet
 const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
 
-// Membuat Pane Khusus agar Titik SELALU berada di lapisan paling atas
-map.createPane('paneBatas');
-map.getPane('paneBatas').style.zIndex = 350;
-
-map.createPane('paneJalur');
-map.getPane('paneJalur').style.zIndex = 400;
-
-map.createPane('paneTitik');
-map.getPane('paneTitik').style.zIndex = 550; // Paling atas di atas jalur & panah!
-
 // Basemap (Satelit Esri & OpenStreetMap)
 const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
     attribution: 'Esri World Imagery' 
@@ -50,7 +40,23 @@ const googleBlueDotIcon = L.divIcon({
     iconAnchor: [20, 20]
 });
 
-// Fungsi Menghitung Sudut Arah Panah (Bearing) Secara Murni (Tanpa Plugin Luar)
+// Icon Titik Kumpul (Hijau - Selalu di atas garis)
+const iconTitikKumpul = L.divIcon({
+    className: 'custom-pin',
+    html: `<div style="width: 20px; height: 20px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.5);"></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+});
+
+// Icon Titik Plang (Oranye Kuning - Selalu di atas garis)
+const iconTitikPlang = L.divIcon({
+    className: 'custom-pin',
+    html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
+});
+
+// Fungsi Menghitung Sudut Arah Panah (Bearing)
 function hitungSudut(lat1, lon1, lat2, lon2) {
     const toRad = deg => deg * Math.PI / 180;
     const toDeg = rad => rad * 180 / Math.PI;
@@ -64,23 +70,22 @@ function hitungSudut(lat1, lon1, lat2, lon2) {
 // Fungsi Menggambar Tanda Panah di Sepanjang Garis Jalur Evakuasi
 function gambarPanahJalur(coordsArray) {
     if (!coordsArray || coordsArray.length < 2) return;
-    // Ambil titik tengah dari segmen garis untuk menempatkan panah
     const step = Math.max(1, Math.floor(coordsArray.length / 3));
     for (let i = 0; i < coordsArray.length - 1; i += step) {
-        const p1 = coordsArray[i];     // [lng, lat]
-        const p2 = coordsArray[i + 1]; // [lng, lat]
+        const p1 = coordsArray[i];
+        const p2 = coordsArray[i + 1];
         const midLat = (p1[1] + p2[1]) / 2;
         const midLng = (p1[0] + p2[0]) / 2;
         const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
 
         const arrowIcon = L.divIcon({
             className: 'arrow-icon',
-            html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 14px; font-weight: bold; text-shadow: 0 0 3px #000;">▲</div>`,
+            html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 13px; font-weight: bold; text-shadow: 0 0 4px #000;">▲</div>`,
             iconSize: [16, 16],
             iconAnchor: [8, 8]
         });
 
-        L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, pane: 'paneJalur' }).addTo(map);
+        L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 200 }).addTo(map);
     }
 }
 
@@ -89,7 +94,6 @@ fetch('data/batas_desa.geojson')
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, { 
-            pane: 'paneBatas',
             style: { 
                 color: '#ef4444', 
                 weight: 3, 
@@ -100,12 +104,11 @@ fetch('data/batas_desa.geojson')
         }).addTo(map);
     }).catch(err => console.error("Error batas_desa.geojson:", err));
 
-// 3. LOAD JALUR EVAKUASI + PANAH ARAH MURNI
+// 3. LOAD JALUR EVAKUASI + PANAH ARAH
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, { 
-            pane: 'paneJalur',
             style: { 
                 color: '#f97316', 
                 weight: 5, 
@@ -122,24 +125,19 @@ fetch('data/jalur_evakuasi.geojson')
         }).addTo(map);
     }).catch(err => console.error("Error jalur_evakuasi.geojson:", err));
 
-// 4. LOAD TITIK KUMPUL & TITIK PLANG (Posisi Paling Atas / Tidak Tertutup Garis)
+// 4. LOAD TITIK KUMPUL & TITIK PLANG (Menggunakan L.marker agar SELALU di atas garis!)
 fetch('data/titik.geojson')
     .then(r => r.json())
     .then(data => {
-        const titikLayer = L.geoJSON(data, {
-            pane: 'paneTitik',
+        L.geoJSON(data, {
             pointToLayer: (feature, latlng) => {
                 const props = feature.properties || {};
                 const teks = JSON.stringify(props).toLowerCase();
                 const isPlang = teks.includes('plang') || teks.includes('rambu');
 
-                return L.circleMarker(latlng, { 
-                    pane: 'paneTitik',
-                    radius: isPlang ? 8 : 10, 
-                    fillColor: isPlang ? "#f59e0b" : "#16a34a", // Oranye Kuning = Plang, Hijau = Titik Kumpul
-                    color: "#ffffff", 
-                    weight: 2.5, 
-                    fillOpacity: 1 
+                return L.marker(latlng, { 
+                    icon: isPlang ? iconTitikPlang : iconTitikKumpul,
+                    zIndexOffset: 600 // Dijamin paling atas di atas garis jalan & panah!
                 });
             },
             onEachFeature: (feature, layer) => {
@@ -171,8 +169,6 @@ fetch('data/titik.geojson')
                 }
             }
         }).addTo(map);
-
-        titikLayer.bringToFront();
     }).catch(err => console.error("Error titik.geojson:", err));
 
 // 5. PELACAKAN LIVE GPS BERGERAK
