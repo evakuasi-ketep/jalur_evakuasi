@@ -1,6 +1,16 @@
 // 1. Inisialisasi Peta Leaflet
 const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
 
+// Membuat Pane Khusus agar Titik Kumpul & Plang SELALU di atas garis jalur
+map.createPane('paneBatas');
+map.getPane('paneBatas').style.zIndex = 350;
+
+map.createPane('paneJalur');
+map.getPane('paneJalur').style.zIndex = 400;
+
+map.createPane('paneTitik');
+map.getPane('paneTitik').style.zIndex = 500; // Paling atas agar tidak ketutup jalur!
+
 // Basemap (Satelit Esri & OpenStreetMap)
 const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
     attribution: 'Esri World Imagery' 
@@ -25,7 +35,6 @@ function toggleBasemap() {
     }
 }
 
-// Variabel Kontrol GPS & Navigasi
 let userMarker = null;
 let accuracyCircle = null;
 let routingControl = null;
@@ -46,6 +55,7 @@ fetch('data/batas_desa.geojson')
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, { 
+            pane: 'paneBatas',
             style: { 
                 color: '#ef4444', 
                 weight: 3, 
@@ -56,35 +66,62 @@ fetch('data/batas_desa.geojson')
         }).addTo(map);
     }).catch(err => console.warn("Gagal memuat batas_desa.geojson:", err));
 
-// 3. LOAD JALUR EVAKUASI
+// 3. LOAD JALUR EVAKUASI + TANDA PANAH ARAH
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
-        L.geoJSON(data, { 
+        const jalurLayer = L.geoJSON(data, { 
+            pane: 'paneJalur',
             style: { 
                 color: '#f97316', 
                 weight: 5, 
                 opacity: 0.9 
             } 
         }).addTo(map);
+
+        // Tambahkan Simbol Panah di sepanjang garis jalur evakuasi
+        if (typeof L.polylineDecorator === 'function') {
+            jalurLayer.eachLayer(layer => {
+                L.polylineDecorator(layer, {
+                    patterns: [
+                        {
+                            offset: 25,
+                            repeat: 65, // Jarak antar panah (pixel)
+                            symbol: L.Symbol.arrowHead({
+                                pixelSize: 10,
+                                polygon: false,
+                                pathOptions: { 
+                                    stroke: true, 
+                                    color: '#ffffff', // Warna panah putih terang agar kontras
+                                    weight: 2.5,
+                                    opacity: 0.95
+                                }
+                            })
+                        }
+                    ]
+                }).addTo(map);
+            });
+        }
     }).catch(err => console.warn("Gagal memuat jalur_evakuasi.geojson:", err));
 
-// 4. LOAD GABUNGAN TITIK KUMPUL & TITIK PLANG (titik.geojson)
+// 4. LOAD GABUNGAN TITIK KUMPUL & TITIK PLANG (Posisi di lapisan paling atas)
 fetch('data/titik.geojson')
     .then(r => r.json())
     .then(data => {
-        L.geoJSON(data, {
+        const titikLayer = L.geoJSON(data, {
+            pane: 'paneTitik',
             pointToLayer: (feature, latlng) => {
                 const props = feature.properties || {};
                 const teks = JSON.stringify(props).toLowerCase();
                 const isPlang = teks.includes('plang') || teks.includes('rambu');
 
                 return L.circleMarker(latlng, { 
-                    radius: isPlang ? 7 : 9, 
-                    fillColor: isPlang ? "#f97316" : "#16a34a", // Oranye = Plang, Hijau = Titik Kumpul
+                    pane: 'paneTitik',
+                    radius: isPlang ? 8 : 10, 
+                    fillColor: isPlang ? "#f59e0b" : "#16a34a", // Kuning/Oranye terang = Plang, Hijau = Titik Kumpul
                     color: "#ffffff", 
-                    weight: 2, 
-                    fillOpacity: 0.95 
+                    weight: 2.5, 
+                    fillOpacity: 1 
                 });
             },
             onEachFeature: (feature, layer) => {
@@ -98,7 +135,7 @@ fetch('data/titik.geojson')
                 if (isPlang) {
                     layer.bindPopup(`
                         <div style="text-align:center; padding: 4px;">
-                            <b style="color:#c2410c; font-size:12px;">📍 ${nama}</b><br>
+                            <b style="color:#d97706; font-size:12px;">📍 ${nama}</b><br>
                             <small style="color:#64748b;">Plang Penunjuk Arah</small>
                         </div>
                     `);
@@ -116,6 +153,8 @@ fetch('data/titik.geojson')
                 }
             }
         }).addTo(map);
+
+        titikLayer.bringToFront();
     }).catch(err => console.warn("Gagal memuat titik.geojson:", err));
 
 // 5. PELACAKAN LIVE GPS BERGERAK (Real-time WatchPosition)
@@ -138,7 +177,7 @@ function lacakLokasi(callback) {
         if (userMarker) {
             userMarker.setLatLng([lat, lng]);
         } else {
-            userMarker = L.marker([lat, lng], { icon: googleBlueDotIcon }).addTo(map);
+            userMarker = L.marker([lat, lng], { icon: googleBlueDotIcon, zIndexOffset: 1000 }).addTo(map);
             map.flyTo([lat, lng], 16, { animate: true });
         }
 
