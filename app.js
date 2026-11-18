@@ -1,7 +1,7 @@
 // 1. Inisialisasi Peta Leaflet
 const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
 
-// Tile Layer Basemap (Satelit Esri & OpenStreetMap)
+// Basemap (Satelit Esri & OpenStreetMap)
 const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
     attribution: 'Esri World Imagery' 
 }).addTo(map);
@@ -33,7 +33,7 @@ let userCoords = null;
 let watchId = null;
 let daftarTitikKumpul = [];
 
-// Marker Icon Bulat Biru Google Maps (CSS DivIcon)
+// Marker Icon Bulat Biru Google Maps
 const googleBlueDotIcon = L.divIcon({
     className: 'gmaps-user-icon',
     html: `<div class="gmaps-pulse"></div><div class="gmaps-blue-dot"></div>`,
@@ -41,20 +41,47 @@ const googleBlueDotIcon = L.divIcon({
     iconAnchor: [20, 20]
 });
 
-// 2. Load Data GeoJSON Desa Ketep
+// 2. LOAD BATAS WILAYAH DESA KETEP
+fetch('data/batas_desa.geojson')
+    .then(r => r.json())
+    .then(data => {
+        L.geoJSON(data, { 
+            style: { 
+                color: '#ef4444', 
+                weight: 3, 
+                dashArray: '6, 6', 
+                fillColor: '#ef4444', 
+                fillOpacity: 0.12 
+            } 
+        }).addTo(map);
+    }).catch(err => console.warn("Gagal memuat batas_desa.geojson:", err));
+
+// 3. LOAD JALUR EVAKUASI
+fetch('data/jalur_evakuasi.geojson')
+    .then(r => r.json())
+    .then(data => {
+        L.geoJSON(data, { 
+            style: { 
+                color: '#f97316', 
+                weight: 5, 
+                opacity: 0.9 
+            } 
+        }).addTo(map);
+    }).catch(err => console.warn("Gagal memuat jalur_evakuasi.geojson:", err));
+
+// 4. LOAD GABUNGAN TITIK KUMPUL & TITIK PLANG (titik.geojson)
 fetch('data/titik.geojson')
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, {
             pointToLayer: (feature, latlng) => {
-                // Cek apakah titik ini plang atau titik kumpul dari atributnya
                 const props = feature.properties || {};
                 const teks = JSON.stringify(props).toLowerCase();
                 const isPlang = teks.includes('plang') || teks.includes('rambu');
 
                 return L.circleMarker(latlng, { 
                     radius: isPlang ? 7 : 9, 
-                    fillColor: isPlang ? "#f97316" : "#16a34a", // Oranye untuk Plang, Hijau untuk Titik Kumpul
+                    fillColor: isPlang ? "#f97316" : "#16a34a", // Oranye = Plang, Hijau = Titik Kumpul
                     color: "#ffffff", 
                     weight: 2, 
                     fillOpacity: 0.95 
@@ -76,7 +103,6 @@ fetch('data/titik.geojson')
                         </div>
                     `);
                 } else {
-                    // Masukkan ke daftar tujuan Evakuasi Otomatis
                     daftarTitikKumpul.push({ nama, lat, lng });
 
                     layer.bindPopup(`
@@ -90,28 +116,25 @@ fetch('data/titik.geojson')
                 }
             }
         }).addTo(map);
-    }).catch(err => console.log("Gagal memuat titik.geojson:", err));
+    }).catch(err => console.warn("Gagal memuat titik.geojson:", err));
 
-// 3. Fitur GPS Live Tracking Real-time (Bisa Bergerak)
+// 5. PELACAKAN LIVE GPS BERGERAK (Real-time WatchPosition)
 function lacakLokasi(callback) {
     if (!navigator.geolocation) {
-        alert("GPS tidak didukung oleh browser/HP Anda.");
+        alert("GPS tidak didukung di perangkat ini.");
         return;
     }
 
-    // Bersihkan pelacak sebelumnya jika ada
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
     }
 
-    // Memantau pergeseran HP secara terus menerus (realtime)
     watchId = navigator.geolocation.watchPosition(pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         const accuracy = pos.coords.accuracy;
         userCoords = { lat, lng };
 
-        // Update / Buat Marker Bulatan Biru Google Maps
         if (userMarker) {
             userMarker.setLatLng([lat, lng]);
         } else {
@@ -119,7 +142,6 @@ function lacakLokasi(callback) {
             map.flyTo([lat, lng], 16, { animate: true });
         }
 
-        // Radius Akurasi GPS (Soft Blue Circle)
         if (accuracyCircle) {
             accuracyCircle.setLatLng([lat, lng]).setRadius(accuracy);
         } else {
@@ -134,20 +156,20 @@ function lacakLokasi(callback) {
 
         if (callback) {
             callback();
-            callback = null; // Eksekusi callback hanya 1x di awal
+            callback = null;
         }
     }, err => {
-        console.warn("Sedang mengunci sinyal GPS...");
+        console.warn("Sedang mencari sinyal GPS...");
     }, {
-        enableHighAccuracy: true, // Sensor presisi tinggi HP
+        enableHighAccuracy: true,
         maximumAge: 0,
         timeout: 15000
     });
 }
 
-// 4. Formula Jarak Haversine (Mencari Titik Terdekat)
+// 6. PERHITUNGAN JARAK HAVERSINE
 function hitungJarak(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radius bumi dalam KM
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -156,7 +178,7 @@ function hitungJarak(lat1, lon1, lat2, lon2) {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
 }
 
-// 5. Fitur Otomatisasi Mode Darurat Bencana
+// 7. FITUR EVAKUASI OTOMATIS
 function evakuasiOtomatis() {
     document.getElementById('alert-banner').style.display = 'block';
 
@@ -166,7 +188,6 @@ function evakuasiOtomatis() {
         let titikTerdekat = null;
         let jarakTermurah = Infinity;
 
-        // Cari titik kumpul yang paling dekat dari posisi HP warga
         daftarTitikKumpul.forEach(titik => {
             const d = hitungJarak(userCoords.lat, userCoords.lng, titik.lat, titik.lng);
             if (d < jarakTermurah) {
@@ -190,7 +211,7 @@ function evakuasiOtomatis() {
     }
 }
 
-// 6. Pembuat Rute Navigasi Berbahasa Indonesia
+// 8. PEMBUAT RUTE NAVIGASI BAHASA INDONESIA
 function buatRute(destLat, destLng) {
     if (!userCoords) {
         lacakLokasi(() => buatRute(destLat, destLng));
@@ -204,7 +225,7 @@ function buatRute(destLat, destLng) {
             L.latLng(userCoords.lat, userCoords.lng),
             L.latLng(destLat, destLng)
         ],
-        language: 'id', // Bahasa Indonesia Penuh
+        language: 'id',
         lineOptions: {
             styles: [{ color: '#2563eb', opacity: 0.9, weight: 6 }]
         },
@@ -214,5 +235,5 @@ function buatRute(destLat, destLng) {
     }).addTo(map);
 }
 
-// Jalankan pencarian lokasi otomatis di awal aplikasi dimuat
+// Jalankan pencarian lokasi awal
 lacakLokasi();
