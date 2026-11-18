@@ -1,7 +1,7 @@
 // 1. Inisialisasi Peta Leaflet
 const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
 
-// Membuat Pane Khusus agar Titik Kumpul & Plang SELALU di atas garis jalur
+// Membuat Pane Khusus agar Titik SELALU berada di lapisan paling atas
 map.createPane('paneBatas');
 map.getPane('paneBatas').style.zIndex = 350;
 
@@ -9,7 +9,7 @@ map.createPane('paneJalur');
 map.getPane('paneJalur').style.zIndex = 400;
 
 map.createPane('paneTitik');
-map.getPane('paneTitik').style.zIndex = 500; // Paling atas agar tidak ketutup jalur!
+map.getPane('paneTitik').style.zIndex = 550; // Paling atas di atas jalur & panah!
 
 // Basemap (Satelit Esri & OpenStreetMap)
 const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
@@ -50,6 +50,40 @@ const googleBlueDotIcon = L.divIcon({
     iconAnchor: [20, 20]
 });
 
+// Fungsi Menghitung Sudut Arah Panah (Bearing) Secara Murni (Tanpa Plugin Luar)
+function hitungSudut(lat1, lon1, lat2, lon2) {
+    const toRad = deg => deg * Math.PI / 180;
+    const toDeg = rad => rad * 180 / Math.PI;
+    const dLon = toRad(lon2 - lon1);
+    const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+    const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+              Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+// Fungsi Menggambar Tanda Panah di Sepanjang Garis Jalur Evakuasi
+function gambarPanahJalur(coordsArray) {
+    if (!coordsArray || coordsArray.length < 2) return;
+    // Ambil titik tengah dari segmen garis untuk menempatkan panah
+    const step = Math.max(1, Math.floor(coordsArray.length / 3));
+    for (let i = 0; i < coordsArray.length - 1; i += step) {
+        const p1 = coordsArray[i];     // [lng, lat]
+        const p2 = coordsArray[i + 1]; // [lng, lat]
+        const midLat = (p1[1] + p2[1]) / 2;
+        const midLng = (p1[0] + p2[0]) / 2;
+        const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
+
+        const arrowIcon = L.divIcon({
+            className: 'arrow-icon',
+            html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 14px; font-weight: bold; text-shadow: 0 0 3px #000;">▲</div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+
+        L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, pane: 'paneJalur' }).addTo(map);
+    }
+}
+
 // 2. LOAD BATAS WILAYAH DESA KETEP
 fetch('data/batas_desa.geojson')
     .then(r => r.json())
@@ -64,47 +98,31 @@ fetch('data/batas_desa.geojson')
                 fillOpacity: 0.12 
             } 
         }).addTo(map);
-    }).catch(err => console.warn("Gagal memuat batas_desa.geojson:", err));
+    }).catch(err => console.error("Error batas_desa.geojson:", err));
 
-// 3. LOAD JALUR EVAKUASI + TANDA PANAH ARAH
+// 3. LOAD JALUR EVAKUASI + PANAH ARAH MURNI
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
-        const jalurLayer = L.geoJSON(data, { 
+        L.geoJSON(data, { 
             pane: 'paneJalur',
             style: { 
                 color: '#f97316', 
                 weight: 5, 
                 opacity: 0.9 
-            } 
+            },
+            onEachFeature: (feature) => {
+                if (!feature.geometry) return;
+                if (feature.geometry.type === 'LineString') {
+                    gambarPanahJalur(feature.geometry.coordinates);
+                } else if (feature.geometry.type === 'MultiLineString') {
+                    feature.geometry.coordinates.forEach(line => gambarPanahJalur(line));
+                }
+            }
         }).addTo(map);
+    }).catch(err => console.error("Error jalur_evakuasi.geojson:", err));
 
-        // Tambahkan Simbol Panah di sepanjang garis jalur evakuasi
-        if (typeof L.polylineDecorator === 'function') {
-            jalurLayer.eachLayer(layer => {
-                L.polylineDecorator(layer, {
-                    patterns: [
-                        {
-                            offset: 25,
-                            repeat: 65, // Jarak antar panah (pixel)
-                            symbol: L.Symbol.arrowHead({
-                                pixelSize: 10,
-                                polygon: false,
-                                pathOptions: { 
-                                    stroke: true, 
-                                    color: '#ffffff', // Warna panah putih terang agar kontras
-                                    weight: 2.5,
-                                    opacity: 0.95
-                                }
-                            })
-                        }
-                    ]
-                }).addTo(map);
-            });
-        }
-    }).catch(err => console.warn("Gagal memuat jalur_evakuasi.geojson:", err));
-
-// 4. LOAD GABUNGAN TITIK KUMPUL & TITIK PLANG (Posisi di lapisan paling atas)
+// 4. LOAD TITIK KUMPUL & TITIK PLANG (Posisi Paling Atas / Tidak Tertutup Garis)
 fetch('data/titik.geojson')
     .then(r => r.json())
     .then(data => {
@@ -118,7 +136,7 @@ fetch('data/titik.geojson')
                 return L.circleMarker(latlng, { 
                     pane: 'paneTitik',
                     radius: isPlang ? 8 : 10, 
-                    fillColor: isPlang ? "#f59e0b" : "#16a34a", // Kuning/Oranye terang = Plang, Hijau = Titik Kumpul
+                    fillColor: isPlang ? "#f59e0b" : "#16a34a", // Oranye Kuning = Plang, Hijau = Titik Kumpul
                     color: "#ffffff", 
                     weight: 2.5, 
                     fillOpacity: 1 
@@ -155,9 +173,9 @@ fetch('data/titik.geojson')
         }).addTo(map);
 
         titikLayer.bringToFront();
-    }).catch(err => console.warn("Gagal memuat titik.geojson:", err));
+    }).catch(err => console.error("Error titik.geojson:", err));
 
-// 5. PELACAKAN LIVE GPS BERGERAK (Real-time WatchPosition)
+// 5. PELACAKAN LIVE GPS BERGERAK
 function lacakLokasi(callback) {
     if (!navigator.geolocation) {
         alert("GPS tidak didukung di perangkat ini.");
