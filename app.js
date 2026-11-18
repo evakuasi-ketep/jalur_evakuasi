@@ -40,18 +40,18 @@ const googleBlueDotIcon = L.divIcon({
     iconAnchor: [20, 20]
 });
 
-// Icon Titik Kumpul (Hijau - Selalu di atas garis)
+// Icon Titik Kumpul (Hijau - Besar & Jelas di atas garis)
 const iconTitikKumpul = L.divIcon({
     className: 'custom-pin',
-    html: `<div style="width: 20px; height: 20px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.5);"></div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
+    html: `<div style="width: 22px; height: 22px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.6);"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
 });
 
-// Icon Titik Plang (Oranye Kuning - Selalu di atas garis)
+// Icon Titik Plang (Oranye Kuning - Jelas di atas garis)
 const iconTitikPlang = L.divIcon({
     className: 'custom-pin',
-    html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>`,
+    html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.6);"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8]
 });
@@ -67,30 +67,30 @@ function hitungSudut(lat1, lon1, lat2, lon2) {
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
-// Fungsi Menggambar Tanda Panah di Sepanjang Garis Jalur Evakuasi
+// Fungsi Menggambar Tanda Panah Rapi (Hanya 1-2 Panah per Ruas Jalan agar tidak penuh sesak)
 function gambarPanahJalur(coordsArray) {
     if (!coordsArray || coordsArray.length < 2) return;
-    const step = Math.max(1, Math.floor(coordsArray.length / 3));
-    for (let i = 0; i < coordsArray.length - 1; i += step) {
-        const p1 = coordsArray[i];
-        const p2 = coordsArray[i + 1];
-        const midLat = (p1[1] + p2[1]) / 2;
-        const midLng = (p1[0] + p2[0]) / 2;
-        const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
+    // Ambil titik tepat di tengah garis (50%)
+    const midIdx = Math.floor(coordsArray.length / 2);
+    const p1 = coordsArray[Math.max(0, midIdx - 1)];
+    const p2 = coordsArray[Math.min(coordsArray.length - 1, midIdx)];
+    
+    const midLat = (p1[1] + p2[1]) / 2;
+    const midLng = (p1[0] + p2[0]) / 2;
+    const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
 
-        const arrowIcon = L.divIcon({
-            className: 'arrow-icon',
-            html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 13px; font-weight: bold; text-shadow: 0 0 4px #000;">▲</div>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
-        });
+    const arrowIcon = L.divIcon({
+        className: 'arrow-icon',
+        html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 12px; font-weight: bold; text-shadow: 0 0 3px #000;">▲</div>`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+    });
 
-        L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 200 }).addTo(map);
-    }
+    L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 200 }).addTo(map);
 }
 
 // 2. LOAD BATAS WILAYAH DESA KETEP
-fetch('data/batas_desa.geojson')
+fetch('data/batas_desa.geojson?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, { 
@@ -102,17 +102,20 @@ fetch('data/batas_desa.geojson')
                 fillOpacity: 0.12 
             } 
         }).addTo(map);
-    }).catch(err => console.error("Error batas_desa.geojson:", err));
+    }).catch(err => console.error("Error batas_desa:", err));
 
-// 3. LOAD JALUR EVAKUASI + PANAH ARAH
-fetch('data/jalur_evakuasi.geojson')
+// 3. LOAD JALUR EVAKUASI (GARIS ORANYE TEBAL + PANAH ARAH)
+fetch('data/jalur_evakuasi.geojson?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
-        L.geoJSON(data, { 
-            style: { 
-                color: '#f97316', 
-                weight: 5, 
-                opacity: 0.9 
+        // Gambar garis jalur oranye terlebih dahulu
+        const layerJalur = L.geoJSON(data, { 
+            style: function() {
+                return { 
+                    color: '#ff6b00', 
+                    weight: 6, 
+                    opacity: 0.95 
+                };
             },
             onEachFeature: (feature) => {
                 if (!feature.geometry) return;
@@ -123,10 +126,12 @@ fetch('data/jalur_evakuasi.geojson')
                 }
             }
         }).addTo(map);
-    }).catch(err => console.error("Error jalur_evakuasi.geojson:", err));
+        
+        layerJalur.bringToFront();
+    }).catch(err => console.error("Error jalur_evakuasi:", err));
 
-// 4. LOAD TITIK KUMPUL & TITIK PLANG (Menggunakan L.marker agar SELALU di atas garis!)
-fetch('data/titik.geojson')
+// 4. LOAD TITIK KUMPUL & TITIK PLANG (DI ATAS GARIS JALUR)
+fetch('data/titik.geojson?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
         L.geoJSON(data, {
@@ -137,7 +142,7 @@ fetch('data/titik.geojson')
 
                 return L.marker(latlng, { 
                     icon: isPlang ? iconTitikPlang : iconTitikKumpul,
-                    zIndexOffset: 600 // Dijamin paling atas di atas garis jalan & panah!
+                    zIndexOffset: 700 // Paling atas di atas jalur & panah
                 });
             },
             onEachFeature: (feature, layer) => {
