@@ -43,7 +43,7 @@ const googleBlueDotIcon = L.divIcon({
 // Icon Titik Kumpul (Hijau - Besar & Jelas di atas garis)
 const iconTitikKumpul = L.divIcon({
     className: 'custom-pin',
-    html: `<div style="width: 22px; height: 22px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.6);"></div>`,
+    html: `<div style="width: 22px; height: 22px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.7);"></div>`,
     iconSize: [22, 22],
     iconAnchor: [11, 11]
 });
@@ -51,7 +51,7 @@ const iconTitikKumpul = L.divIcon({
 // Icon Titik Plang (Oranye Kuning - Jelas di atas garis)
 const iconTitikPlang = L.divIcon({
     className: 'custom-pin',
-    html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.6);"></div>`,
+    html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.7);"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8]
 });
@@ -67,10 +67,19 @@ function hitungSudut(lat1, lon1, lat2, lon2) {
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
-// Fungsi Menggambar Tanda Panah Rapi (Hanya 1-2 Panah per Ruas Jalan agar tidak penuh sesak)
-function gambarPanahJalur(coordsArray) {
+// Fungsi Menggambar Garis Jalur Oranye + Tanda Panah Rapi
+function gambarJalurDanPanah(coordsArray) {
     if (!coordsArray || coordsArray.length < 2) return;
-    // Ambil titik tepat di tengah garis (50%)
+
+    // 1. Konversi koordinat [lng, lat, z] menjadi [lat, lng] untuk Polyline
+    const latLngs = coordsArray.map(c => [c[1], c[0]]);
+    L.polyline(latLngs, {
+        color: '#ff6b00',
+        weight: 5,
+        opacity: 0.95
+    }).addTo(map);
+
+    // 2. Gambar Panah di titik tengah ruas jalan
     const midIdx = Math.floor(coordsArray.length / 2);
     const p1 = coordsArray[Math.max(0, midIdx - 1)];
     const p2 = coordsArray[Math.min(coordsArray.length - 1, midIdx)];
@@ -86,7 +95,7 @@ function gambarPanahJalur(coordsArray) {
         iconAnchor: [7, 7]
     });
 
-    L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 200 }).addTo(map);
+    L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 300 }).addTo(map);
 }
 
 // 2. LOAD BATAS WILAYAH DESA KETEP
@@ -108,72 +117,63 @@ fetch('data/batas_desa.geojson?v=' + Date.now())
 fetch('data/jalur_evakuasi.geojson?v=' + Date.now())
     .then(r => r.json())
     .then(data => {
-        // Gambar garis jalur oranye terlebih dahulu
-        const layerJalur = L.geoJSON(data, { 
-            style: function() {
-                return { 
-                    color: '#ff6b00', 
-                    weight: 6, 
-                    opacity: 0.95 
-                };
-            },
-            onEachFeature: (feature) => {
-                if (!feature.geometry) return;
-                if (feature.geometry.type === 'LineString') {
-                    gambarPanahJalur(feature.geometry.coordinates);
-                } else if (feature.geometry.type === 'MultiLineString') {
-                    feature.geometry.coordinates.forEach(line => gambarPanahJalur(line));
-                }
+        if (!data.features) return;
+        data.features.forEach(feature => {
+            if (!feature.geometry) return;
+            if (feature.geometry.type === 'LineString') {
+                gambarJalurDanPanah(feature.geometry.coordinates);
+            } else if (feature.geometry.type === 'MultiLineString') {
+                feature.geometry.coordinates.forEach(line => gambarJalurDanPanah(line));
             }
-        }).addTo(map);
-        
-        layerJalur.bringToFront();
+        });
     }).catch(err => console.error("Error jalur_evakuasi:", err));
 
 // 4. LOAD TITIK KUMPUL & TITIK PLANG (DI ATAS GARIS JALUR)
 fetch('data/titik.geojson?v=' + Date.now())
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) throw new Error("File data/titik.geojson belum di-upload ke GitHub!");
+        return r.json();
+    })
     .then(data => {
-        L.geoJSON(data, {
-            pointToLayer: (feature, latlng) => {
-                const props = feature.properties || {};
-                const teks = JSON.stringify(props).toLowerCase();
-                const isPlang = teks.includes('plang') || teks.includes('rambu');
+        if (!data.features) return;
+        data.features.forEach(feature => {
+            if (!feature.geometry || !feature.geometry.coordinates) return;
+            
+            // Ambil koordinat murni 2D (abaikan elevasi Z jika ada)
+            const coords = feature.geometry.coordinates;
+            const lng = coords[0];
+            const lat = coords[1];
 
-                return L.marker(latlng, { 
-                    icon: isPlang ? iconTitikPlang : iconTitikKumpul,
-                    zIndexOffset: 700 // Paling atas di atas jalur & panah
-                });
-            },
-            onEachFeature: (feature, layer) => {
-                const props = feature.properties || {};
-                const nama = props.nama || props.NAMOBJ || props.keterangan || "Titik Evakuasi";
-                const teks = JSON.stringify(props).toLowerCase();
-                const isPlang = teks.includes('plang') || teks.includes('rambu');
-                const lat = layer.getLatLng().lat;
-                const lng = layer.getLatLng().lng;
+            const props = feature.properties || {};
+            const nama = props.nama || props.NAMOBJ || props.keterangan || "Titik Evakuasi";
+            const teks = JSON.stringify(props).toLowerCase();
+            const isPlang = teks.includes('plang') || teks.includes('rambu');
 
-                if (isPlang) {
-                    layer.bindPopup(`
-                        <div style="text-align:center; padding: 4px;">
-                            <b style="color:#d97706; font-size:12px;">📍 ${nama}</b><br>
-                            <small style="color:#64748b;">Plang Penunjuk Arah</small>
-                        </div>
-                    `);
-                } else {
-                    daftarTitikKumpul.push({ nama, lat, lng });
+            const marker = L.marker([lat, lng], { 
+                icon: isPlang ? iconTitikPlang : iconTitikKumpul,
+                zIndexOffset: 700 // Paling atas di atas jalur & panah
+            }).addTo(map);
 
-                    layer.bindPopup(`
-                        <div style="text-align:center; padding: 4px;">
-                            <b style="color:#15803d; font-size:13px;">${nama}</b><br><br>
-                            <button onclick="buatRute(${lat}, ${lng})" style="background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:11px;">
-                                🚗 Rute Ke Sini
-                            </button>
-                        </div>
-                    `);
-                }
+            if (isPlang) {
+                marker.bindPopup(`
+                    <div style="text-align:center; padding: 4px;">
+                        <b style="color:#d97706; font-size:12px;">📍 ${nama}</b><br>
+                        <small style="color:#64748b;">Plang Penunjuk Arah</small>
+                    </div>
+                `);
+            } else {
+                daftarTitikKumpul.push({ nama, lat, lng });
+
+                marker.bindPopup(`
+                    <div style="text-align:center; padding: 4px;">
+                        <b style="color:#15803d; font-size:13px;">${nama}</b><br><br>
+                        <button onclick="buatRute(${lat}, ${lng})" style="background:#dc2626; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-weight:bold; font-size:11px;">
+                            🚗 Rute Ke Sini
+                        </button>
+                    </div>
+                `);
             }
-        }).addTo(map);
+        });
     }).catch(err => console.error("Error titik.geojson:", err));
 
 // 5. PELACAKAN LIVE GPS BERGERAK
