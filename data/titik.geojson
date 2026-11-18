@@ -1,0 +1,201 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Titik kumpul dusun gintung",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.380695797503,
+          -7.501128768988632
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Plang evakuasi",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.380066819489,
+          -7.502115684047247
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "titik kumpul dusun puluhan",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.37885881960392,
+          -7.506334230383299
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Plang 1 arah kiri",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.3780622035265,
+          -7.506554945888086
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "plang 2 arah kiri",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.3781845793128,
+          -7.5003319888457884
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "titik kumpul dusun ketep",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.37716802209616,
+          -7.499750940078782
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "plang jalur evakuasi yang sudah ada",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.37539977580309,
+          -7.499193491533716
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "titik kumpul bayangan",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.37778995931149,
+          -7.49852634734539
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "titik kumpul utama",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.38185082376003,
+          -7.494174428033053
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Titik jalur evakuasi yang sudah ada",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.38234032690525,
+          -7.49190604099437
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Titik kumpul dusun dadapan",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.38159802556038,
+          -7.491253844293288
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "plang jalur evakuasi dusun gondangsari arah kanan",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.38585871458054,
+          -7.49353553123735
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Plang evakuasi yang sudah ada",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.38427051156759,
+          -7.498046348602317
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "plang evakuasi dusun gintubg arah kanan",
+        "description": "no description"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          110.38160942494869,
+          -7.499473379324179
+        ]
+      }
+    }
+  ]
+}
