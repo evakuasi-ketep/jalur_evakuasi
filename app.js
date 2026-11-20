@@ -76,23 +76,28 @@ if (!window.petaKetepAktif) {
             }).addTo(map);
         });
 
-    // 3. LOAD JALUR EVAKUASI (FILTER KOORDINAT KOSONG + GAMBAR GARIS ORANYE)
+// 3. LOAD JALUR EVAKUASI (HANYA DI AREA DESA KETEP + WARNA BARU)
     fetch('data/jalur_evakuasi.geojson')
         .then(r => r.json())
         .then(data => {
             if (!data.features) return;
+
+            // Batas koordinat area Desa Ketep
+            const isDiKetep = (lat, lng) => {
+                return lat >= -7.515 && lat <= -7.470 && lng >= 110.375 && lng <= 110.415;
+            };
 
             data.features.forEach(f => {
                 if (!f.geometry || !f.geometry.coordinates) return;
                 
                 if (f.geometry.type === 'LineString') {
                     const validCoords = f.geometry.coordinates
-                        .filter(c => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' && !isNaN(c[0]) && !isNaN(c[1]))
+                        .filter(c => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' && isDiKetep(c[1], c[0]))
                         .map(c => [c[1], c[0]]);
                     
                     if (validCoords.length >= 2) {
                         L.polyline(validCoords, {
-                            color: '#ff6b00',
+                            color: '#00e5ff', // Warna Cyan Terang (bisa diganti sesuai selera)
                             weight: 5,
                             opacity: 0.95
                         }).addTo(map);
@@ -101,12 +106,12 @@ if (!window.petaKetepAktif) {
                     f.geometry.coordinates.forEach(line => {
                         if (!Array.isArray(line)) return;
                         const validCoords = line
-                            .filter(c => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' && !isNaN(c[0]) && !isNaN(c[1]))
+                            .filter(c => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' && isDiKetep(c[1], c[0]))
                             .map(c => [c[1], c[0]]);
                         
                         if (validCoords.length >= 2) {
                             L.polyline(validCoords, {
-                                color: '#ff6b00',
+                                color: '#00e5ff', // Warna Cyan Terang (bisa diganti sesuai selera)
                                 weight: 5,
                                 opacity: 0.95
                             }).addTo(map);
