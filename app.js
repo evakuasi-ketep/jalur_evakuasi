@@ -1,13 +1,4 @@
-// 0. Hapus Cache Service Worker Lama Otomatis agar Peta Selalu Update
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-        for (let reg of registrations) {
-            reg.unregister();
-        }
-    });
-}
-
-// 1. Inisialisasi Peta Leaflet (Gunakan SVG Default agar Poligon Batas & Garis Jalur Muncul)
+// 1. Inisialisasi Peta Leaflet
 const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
 
 // Basemap (Satelit Esri & OpenStreetMap)
@@ -65,17 +56,6 @@ const iconTitikPlang = L.divIcon({
     iconAnchor: [8, 8]
 });
 
-// Fungsi Menghitung Sudut Arah Panah (Bearing)
-function hitungSudut(lat1, lon1, lat2, lon2) {
-    const toRad = deg => deg * Math.PI / 180;
-    const toDeg = rad => rad * 180 / Math.PI;
-    const dLon = toRad(lon2 - lon1);
-    const y = Math.sin(dLon) * Math.cos(toRad(lat2));
-    const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
-              Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
-    return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
 // 2. LOAD BATAS WILAYAH DESA KETEP
 fetch('data/batas_desa.geojson')
     .then(r => r.json())
@@ -89,9 +69,9 @@ fetch('data/batas_desa.geojson')
                 fillOpacity: 0.12 
             } 
         }).addTo(map);
-    }).catch(err => console.error("Error batas_desa:", err));
+    });
 
-// 3. LOAD JALUR EVAKUASI (GARIS ORANYE TEBAL + PANAH ARAH)
+// 3. LOAD JALUR EVAKUASI (GARIS ORANYE TEBAL)
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
@@ -100,36 +80,9 @@ fetch('data/jalur_evakuasi.geojson')
                 color: '#ff6b00', 
                 weight: 5, 
                 opacity: 0.95 
-            },
-            onEachFeature: (feature) => {
-                if (!feature.geometry) return;
-
-                const prosesPanah = (coords) => {
-                    if (!coords || coords.length < 2) return;
-                    const midIdx = Math.floor(coords.length / 2);
-                    const p1 = coords[Math.max(0, midIdx - 1)];
-                    const p2 = coords[Math.min(coords.length - 1, midIdx)];
-                    const midLat = (p1[1] + p2[1]) / 2;
-                    const midLng = (p1[0] + p2[0]) / 2;
-                    const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
-
-                    const arrowIcon = L.divIcon({
-                        className: 'arrow-icon',
-                        html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 13px; font-weight: bold; text-shadow: 0 0 4px #000;">▲</div>`,
-                        iconSize: [14, 14],
-                        iconAnchor: [7, 7]
-                    });
-                    L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 300 }).addTo(map);
-                };
-
-                if (feature.geometry.type === 'LineString') {
-                    prosesPanah(feature.geometry.coordinates);
-                } else if (feature.geometry.type === 'MultiLineString') {
-                    feature.geometry.coordinates.forEach(line => prosesPanah(line));
-                }
-            }
+            } 
         }).addTo(map);
-    }).catch(err => console.error("Error jalur_evakuasi:", err));
+    });
 
 // 4. LOAD TITIK KUMPUL & TITIK PLANG (DI ATAS GARIS JALUR)
 fetch('data/titik.geojson')
@@ -173,7 +126,7 @@ fetch('data/titik.geojson')
                 `);
             }
         });
-    }).catch(err => console.error("Error titik.geojson:", err));
+    });
 
 // 5. PELACAKAN LIVE GPS BERGERAK
 function lacakLokasi(callback) {
