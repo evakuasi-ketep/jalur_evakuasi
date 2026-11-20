@@ -1,17 +1,17 @@
-// 1. Inisialisasi Peta Leaflet
-const map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
+// 1. Inisialisasi Peta Leaflet (Gunakan var agar tidak error jika script terpanggil ganda)
+var map = L.map('map', { zoomControl: false }).setView([-7.4935, 110.3950], 14);
 
 // Basemap (Satelit Esri & OpenStreetMap)
-const esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
+var esriSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
     attribution: 'Esri World Imagery' 
 }).addTo(map);
 
-const osmMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+var osmMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
     maxZoom: 18, 
     attribution: 'OpenStreetMap' 
 });
 
-let currentBasemap = 'satelit';
+var currentBasemap = 'satelit';
 
 function toggleBasemap() {
     if (currentBasemap === 'satelit') {
@@ -25,15 +25,15 @@ function toggleBasemap() {
     }
 }
 
-let userMarker = null;
-let accuracyCircle = null;
-let routingControl = null;
-let userCoords = null;
-let watchId = null;
-let daftarTitikKumpul = [];
+var userMarker = null;
+var accuracyCircle = null;
+var routingControl = null;
+var userCoords = null;
+var watchId = null;
+var daftarTitikKumpul = [];
 
 // Marker Icon Bulat Biru Google Maps
-const googleBlueDotIcon = L.divIcon({
+var googleBlueDotIcon = L.divIcon({
     className: 'gmaps-user-icon',
     html: `<div class="gmaps-pulse"></div><div class="gmaps-blue-dot"></div>`,
     iconSize: [40, 40],
@@ -41,7 +41,7 @@ const googleBlueDotIcon = L.divIcon({
 });
 
 // Icon Titik Kumpul (Hijau - Selalu di atas garis)
-const iconTitikKumpul = L.divIcon({
+var iconTitikKumpul = L.divIcon({
     className: 'custom-pin',
     html: `<div style="width: 22px; height: 22px; background: #16a34a; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.7);"></div>`,
     iconSize: [22, 22],
@@ -49,7 +49,7 @@ const iconTitikKumpul = L.divIcon({
 });
 
 // Icon Titik Plang (Oranye Kuning - Selalu di atas garis)
-const iconTitikPlang = L.divIcon({
+var iconTitikPlang = L.divIcon({
     className: 'custom-pin',
     html: `<div style="width: 16px; height: 16px; background: #f59e0b; border: 2.5px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.7);"></div>`,
     iconSize: [16, 16],
@@ -72,7 +72,7 @@ fetch('data/batas_desa.geojson')
         }).addTo(map);
     });
 
-// 3. LOAD JALUR EVAKUASI (HAPUS CRS + KONVERSI 2D + GAMBAR LANGSUNG)
+// 3. LOAD JALUR EVAKUASI (FILTER KOORDINAT KOSONG/NULL PENYEBAB Bounds.js ERROR)
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
@@ -82,20 +82,32 @@ fetch('data/jalur_evakuasi.geojson')
             if (!f.geometry || !f.geometry.coordinates) return;
             
             if (f.geometry.type === 'LineString') {
-                const latlngs = f.geometry.coordinates.map(c => [c[1], c[0]]);
-                L.polyline(latlngs, {
-                    color: '#ff6b00',
-                    weight: 5,
-                    opacity: 0.95
-                }).addTo(map);
-            } else if (f.geometry.type === 'MultiLineString') {
-                f.geometry.coordinates.forEach(line => {
-                    const latlngs = line.map(c => [c[1], c[0]]);
-                    L.polyline(latlngs, {
+                // Saring hanya titik yang memiliki angka lat & lng valid
+                const validCoords = f.geometry.coordinates
+                    .filter(c => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' && !isNaN(c[0]) && !isNaN(c[1]))
+                    .map(c => [c[1], c[0]]);
+                
+                if (validCoords.length >= 2) {
+                    L.polyline(validCoords, {
                         color: '#ff6b00',
                         weight: 5,
                         opacity: 0.95
                     }).addTo(map);
+                }
+            } else if (f.geometry.type === 'MultiLineString') {
+                f.geometry.coordinates.forEach(line => {
+                    if (!Array.isArray(line)) return;
+                    const validCoords = line
+                        .filter(c => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' && !isNaN(c[0]) && !isNaN(c[1]))
+                        .map(c => [c[1], c[0]]);
+                    
+                    if (validCoords.length >= 2) {
+                        L.polyline(validCoords, {
+                            color: '#ff6b00',
+                            weight: 5,
+                            opacity: 0.95
+                        }).addTo(map);
+                    }
                 });
             }
         });
@@ -112,6 +124,7 @@ fetch('data/titik.geojson')
             const coords = feature.geometry.coordinates;
             const lng = coords[0];
             const lat = coords[1];
+            if (typeof lat !== 'number' || typeof lng !== 'number') return;
 
             const props = feature.properties || {};
             const nama = props.nama || props.NAMOBJ || props.keterangan || "Titik Evakuasi";
