@@ -86,44 +86,13 @@ fetch('data/batas_desa.geojson?v=' + Date.now())
     }).catch(err => console.error("Error batas_desa:", err));
 
 // 3. LOAD JALUR EVAKUASI (GARIS ORANYE TEBAL + PANAH ARAH)
-fetch('data/jalur_evakuasi.geojson?v=' + Date.now())
+fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
-        const jalurLayer = L.geoJSON(data, { 
-            style: { 
-                color: '#ff6b00', 
-                weight: 5, 
-                opacity: 0.95 
-            },
-            onEachFeature: (feature) => {
-                if (!feature.geometry) return;
-
-                const prosesPanah = (coords) => {
-                    if (!coords || coords.length < 2) return;
-                    const midIdx = Math.floor(coords.length / 2);
-                    const p1 = coords[Math.max(0, midIdx - 1)];
-                    const p2 = coords[Math.min(coords.length - 1, midIdx)];
-                    const midLat = (p1[1] + p2[1]) / 2;
-                    const midLng = (p1[0] + p2[0]) / 2;
-                    const angle = hitungSudut(p1[1], p1[0], p2[1], p2[0]);
-
-                    const arrowIcon = L.divIcon({
-                        className: 'arrow-icon',
-                        html: `<div style="transform: rotate(${angle}deg); color: #ffffff; font-size: 13px; font-weight: bold; text-shadow: 0 0 4px #000;">▲</div>`,
-                        iconSize: [14, 14],
-                        iconAnchor: [7, 7]
-                    });
-                    L.marker([midLat, midLng], { icon: arrowIcon, interactive: false, zIndexOffset: 300 }).addTo(map);
-                };
-
-                if (feature.geometry.type === 'LineString') {
-                    prosesPanah(feature.geometry.coordinates);
-                } else if (feature.geometry.type === 'MultiLineString') {
-                    feature.geometry.coordinates.forEach(line => prosesPanah(line));
-                }
-            }
+        L.geoJSON(data, { 
+            style: { color: '#e65100', weight: 5, opacity: 0.9 } 
         }).addTo(map);
-    }).catch(err => console.error("Error jalur_evakuasi:", err));
+    }).catch(err => console.log("Jalur evakuasi belum di-load"));
 
 // 4. LOAD TITIK KUMPUL & TITIK PLANG (DI ATAS GARIS JALUR)
 fetch('data/titik.geojson?v=' + Date.now())
