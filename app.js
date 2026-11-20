@@ -60,6 +60,7 @@ const iconTitikPlang = L.divIcon({
 fetch('data/batas_desa.geojson')
     .then(r => r.json())
     .then(data => {
+        delete data.crs;
         L.geoJSON(data, { 
             style: { 
                 color: '#ef4444', 
@@ -71,31 +72,33 @@ fetch('data/batas_desa.geojson')
         }).addTo(map);
     });
 
-// 3. LOAD JALUR EVAKUASI (KONVERSI 3D KE 2D MURNI AGAR 100% MUNCUL)
+// 3. LOAD JALUR EVAKUASI (HAPUS CRS + KONVERSI 2D + GAMBAR LANGSUNG)
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
         if (!data.features) return;
 
-        // Bersihkan koordinat Z (0.0) dari setiap fitur sebelum dirender
-        const cleanFeatures = data.features.map(f => {
-            if (!f.geometry) return f;
-            const geom = { ...f.geometry };
-            if (geom.type === 'LineString') {
-                geom.coordinates = geom.coordinates.map(c => [c[0], c[1]]);
-            } else if (geom.type === 'MultiLineString') {
-                geom.coordinates = geom.coordinates.map(line => line.map(c => [c[0], c[1]]));
+        data.features.forEach(f => {
+            if (!f.geometry || !f.geometry.coordinates) return;
+            
+            if (f.geometry.type === 'LineString') {
+                const latlngs = f.geometry.coordinates.map(c => [c[1], c[0]]);
+                L.polyline(latlngs, {
+                    color: '#ff6b00',
+                    weight: 5,
+                    opacity: 0.95
+                }).addTo(map);
+            } else if (f.geometry.type === 'MultiLineString') {
+                f.geometry.coordinates.forEach(line => {
+                    const latlngs = line.map(c => [c[1], c[0]]);
+                    L.polyline(latlngs, {
+                        color: '#ff6b00',
+                        weight: 5,
+                        opacity: 0.95
+                    }).addTo(map);
+                });
             }
-            return { ...f, geometry: geom };
         });
-
-        L.geoJSON({ type: "FeatureCollection", features: cleanFeatures }, { 
-            style: { 
-                color: '#ff6b00', 
-                weight: 5, 
-                opacity: 0.95 
-            } 
-        }).addTo(map);
     });
 
 // 4. LOAD TITIK KUMPUL & TITIK PLANG (DI ATAS GARIS JALUR)
