@@ -71,11 +71,25 @@ fetch('data/batas_desa.geojson')
         }).addTo(map);
     });
 
-// 3. LOAD JALUR EVAKUASI (GARIS ORANYE TEBAL)
+// 3. LOAD JALUR EVAKUASI (KONVERSI 3D KE 2D MURNI AGAR 100% MUNCUL)
 fetch('data/jalur_evakuasi.geojson')
     .then(r => r.json())
     .then(data => {
-        L.geoJSON(data, { 
+        if (!data.features) return;
+
+        // Bersihkan koordinat Z (0.0) dari setiap fitur sebelum dirender
+        const cleanFeatures = data.features.map(f => {
+            if (!f.geometry) return f;
+            const geom = { ...f.geometry };
+            if (geom.type === 'LineString') {
+                geom.coordinates = geom.coordinates.map(c => [c[0], c[1]]);
+            } else if (geom.type === 'MultiLineString') {
+                geom.coordinates = geom.coordinates.map(line => line.map(c => [c[0], c[1]]));
+            }
+            return { ...f, geometry: geom };
+        });
+
+        L.geoJSON({ type: "FeatureCollection", features: cleanFeatures }, { 
             style: { 
                 color: '#ff6b00', 
                 weight: 5, 
